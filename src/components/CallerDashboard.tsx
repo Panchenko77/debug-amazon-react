@@ -124,7 +124,7 @@ const CallerDashboard = ({ records }: Props) => {
       uuid: "bs_a2",
       title: "Buyer Values",
       body: records[currentIndex]?.call_script?.bs_a2,
-    }
+    },
   ];
 
   return (
