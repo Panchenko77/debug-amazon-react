@@ -1,14 +1,16 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com, Incon. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 import "amazon-connect-streams";
-import axios from "axios";
-import React, { memo, useRef, useEffect } from "react";
+import React, { memo, useRef, useEffect, useState } from "react";
 import CallButton from "./phone/CallButton.tsx";
-import HangUpButton from "./phone/HandUpButton.tsx";
+import HangUpButton from "./phone/HangUpButton.tsx";
 
 const ConnectCCP = ({ phoneNum }) => {
   const ref = useRef();
   const number = phoneNum.replace(/\D/g, "");
+
+  const [con, setCon] = useState(null);
+  const [buttonState, setButtonState] = useState("disabled");
   useEffect(() => {
     try {
       connect.core.initCCP(ref.current, {
@@ -40,6 +42,7 @@ const ConnectCCP = ({ phoneNum }) => {
         ccpLoadTimeout: 10000, //optional, defaults to 5000 (ms)
       });
       global.connect.agent((agent) => {
+        setButtonState("enabled");
         console.log("Agent initialized");
 
         // Handle agent state changes
@@ -64,20 +67,22 @@ const ConnectCCP = ({ phoneNum }) => {
     }
 
     return () => {
-      // Cleanup: Disconnect from Amazon Connect when component unmounts
+      if (con) disconnectCall();
     };
   }, [ref]);
 
-  var c;
+  // var c;
   const subscribeToContactEvents = (contact) => {
-    c = contact;
-    console.log("Subscribing to events for contact");
+    setCon(contact);
+    // setButtonState("enabled");
+    // console.log("Subscribing to events for contact");
     contact.onConnected(handleContactConnected);
     contact.onEnded(handleContactEnded);
   };
 
   const handleContactConnected = (contact) => {
     if (contact) {
+      setButtonState("hangUpActived");
       console.log(
         "[contact.onConnected] Contact connected to agent. Contact state is " +
           contact.getStatus().type
@@ -95,7 +100,8 @@ const ConnectCCP = ({ phoneNum }) => {
         "[contact.onEnded] Contact has ended. Contact state is " +
           contact.getStatus().type
       );
-      //contact.clear();
+      setButtonState("enabled");
+      closeContact();
     } else {
       console.log(
         "[contact.onEnded] Contact has ended. Null contact passed to event handler"
@@ -104,9 +110,11 @@ const ConnectCCP = ({ phoneNum }) => {
   };
 
   const disconnectCall = () => {
-    c.getAgentConnection().destroy({
+    if (buttonState === "disabled") return;
+    con.getAgentConnection().destroy({
       success: function () {
         console.log("Disconnected contact via Streams");
+        closeContact(); // Call function to close the contact
       },
       failure: function () {
         console.log("Failed to disconnect contact via Streams");
@@ -114,8 +122,18 @@ const ConnectCCP = ({ phoneNum }) => {
     });
   };
 
-  const ouboundCall = () => {
-    var endpoint = connect.Endpoint.byPhoneNumber("+1" + number);
+  const closeContact = () => {
+    if (con) {
+      con.clear(); // Clear the contact's resources
+      console.log("Contact closed");
+    }
+    // Optionally, perform additional cleanup or state management specific to your application
+  };
+
+  const outboundCall = () => {
+    if (buttonState === "disabled") return;
+    setButtonState("callActived");
+    var endpoint = connect.Endpoint.byPhoneNumber("+16179399237");
     var agent = new connect.Agent();
     //var queueArn = "arn:aws:connect:<REGION>:<ACCOUNT_ID>:instance/<CONNECT_INSTANCE_ID>/queue/<CONNECT_QUEUE_ID>";
 
@@ -135,8 +153,8 @@ const ConnectCCP = ({ phoneNum }) => {
     <>
       <div ref={ref} style={{ display: "none" }} />
       <div className="flex justify-between mb-5">
-        <CallButton acceptHandler={ouboundCall} />
-        <HangUpButton disconnectHandler={disconnectCall} />
+        <CallButton status={buttonState} acceptHandler={outboundCall} />
+        <HangUpButton status={buttonState} disconnectHandler={disconnectCall} />
       </div>
     </>
   );
